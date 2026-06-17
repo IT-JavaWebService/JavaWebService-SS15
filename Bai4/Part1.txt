@@ -1,0 +1,23 @@
+Phần 1 - Phân tích logic
+1. Vai trò của UserDetailsService và PasswordEncoder trong Spring Security
+Trong kiến trúc của Spring Security, hai thành phần này đóng vai trò như hai "vị hộ pháp" phối hợp chặt chẽ với nhau để thực hiện quá trình Xác thực (Authentication):
+
+UserDetailsService (Core Data Interface): Đóng vai trò là cầu nối duy nhất giữa lõi bảo mật của Spring Security và cơ sở dữ liệu (Database) của ứng dụng. Nhiệm vụ duy nhất của nó là nhận vào một username (dạng chuỗi) và truy vấn vào DB để trả về một đối tượng chứa toàn bộ thông tin bảo mật của người dùng đó (bọc trong interface UserDetails), bao gồm: Username, Password đã mã hóa, trạng thái tài khoản, và danh sách các quyền/vai trò (GrantedAuthorities).
+
+PasswordEncoder (Cryptographic Service): Đóng vai trò là công cụ mã hóa và kiểm tra tính hợp lệ của mật khẩu. Nó cung cấp hai hàm cốt lõi: encode() (băm mật khẩu khi đăng ký) và matches() (so sánh mật khẩu thô người dùng vừa nhập với mật khẩu đã mã hóa lấy ra từ DB).
+
+2. Sự nguy hiểm của "Plain Text" và NoOpPasswordEncoder
+Việc lưu trữ mật khẩu dưới dạng văn bản thuần túy (Plain Text) hoặc sử dụng NoOpPasswordEncoder (không mã hóa) là một sai lầm chết người, kể cả khi bạn có tường lửa hay hệ thống an ninh mạng mạnh mẽ bao quanh Database:
+
+Rò rỉ từ bên trong (Insider Threats): Quản trị viên hệ thống, lập trình viên có quyền truy cập DB, hoặc những người bảo trì server đều có thể nhìn thấy toàn bộ mật khẩu của người dùng.
+
+Hậu quả từ một vụ hack đơn lẻ: Nếu hacker sử dụng các kỹ thuật như SQL Injection hoặc đánh cắp file backup database, họ sẽ ngay lập tức chiếm đoạt toàn bộ tài khoản trong hệ thống mà không tốn một chút công sức nào để bẻ khóa.
+
+Hiệu ứng dây chuyền (Credential Stuffing): Người dùng có thói quen dùng chung một mật khẩu cho nhiều tài khoản (Gmail, Facebook, Ngân hàng...). Nếu database thư viện bị lộ mật khẩu dạng plain text, tài khoản của họ ở các nền tảng quan trọng khác cũng sẽ bị tấn công.
+
+3. Tại sao BCryptPasswordEncoder là lựa chọn tối ưu hiện nay?
+BCrypt được khuyến nghị rộng rãi bởi các chuyên gia bảo mật trên toàn thế giới nhờ hai cơ chế đặc biệt:
+
+Tự động muối mật khẩu (Salt): Với cùng một mật khẩu là password123, nếu băm bằng MD5 hay SHA-256 thì kết quả trả ra luôn giống nhau (dẫn đến việc hacker dùng bảng tra cứu - Rainbow Table để giải mã). Nhưng với BCrypt, mỗi lần băm nó sẽ tự tạo ra một chuỗi muối (Salt) ngẫu nhiên và gộp vào kết quả. Do đó, hai người dùng có mật khẩu giống hệt nhau thì chuỗi hash lưu trong DB vẫn hoàn toàn khác nhau.
+
+Cơ chế thích ứng (Adaptive Work Factor): BCrypt cho phép bạn cấu hình một tham số gọi là "độ phức tạp" (độ mạnh của thuật toán - mặc định là 10). Tham số này làm chậm quá trình tính toán hash một cách chủ đích. Đối với người dùng hợp lệ, việc chậm thêm 100-200ms để đăng nhập là không thể nhận ra. Tuy nhiên, đối với hacker muốn dùng siêu máy tính để thử hàng tỷ mật khẩu (Brute-Force), việc mỗi phép thử bị chậm đi 0.2 giây sẽ khiến cuộc tấn công mất tới hàng trăm năm để hoàn thành, biến việc phá khóa trở nên bất khả thi về mặt chi phí và thời gian.
